@@ -25,8 +25,8 @@ BLACK = (0,0,0)
 FONT = pygame.font.SysFont( None, 36 ) 
 
 ## Screen information
-SCREEN_WIDTH = 900
-SCREEN_HEIGHT = 900
+SCREEN_WIDTH = 750
+SCREEN_HEIGHT = 250
 
 # Game Window
 DISPLAYSURF = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
@@ -42,11 +42,20 @@ class Tile(pygame.sprite.Sprite):
         self.x = x
         self.y = y
         self.size = size
-        self.image = pygame.Surface([size, size])
-        self.image.fill(GRAY)
+        self.imageGray()
         self.rect = self.image.get_rect()
         self.rect.topleft = (x*(size+1),y*(size+1))
         self.isBomb = False
+        self.isFound = False
+        self.isNumber = False
+        self.flag = pygame.image.load("assets/flag.png").convert_alpha().copy()
+    
+    def imageGray(self):
+        self.image = pygame.Surface([self.size, self.size])
+        self.image.fill(GRAY)
+
+    def imageFlag(self):
+        self.image.blit(self.flag,(self.size/4,self.size/4))
 
     def getPos(self):
         return (self.x*(self.size+1), self.y*(self.size+1))
@@ -61,92 +70,207 @@ class Tile(pygame.sprite.Sprite):
         drawX = self.size/2 - (number_size[0] / 2.)
         drawY = self.size/2 - (number_size[1] / 2.)
         self.image.blit(number_image,(drawX,drawY))
+        self.isNumber = True
 
-# Preset of Game var
-## The Game Grid
-grid = [[]]
-for i in range(9):
-    grid.append([])
-    for j in range(9):
-        newTile = Tile(i,j,25)
-        grid[i].append(newTile)
+#Clickable Button
+class Button(pygame.sprite.Sprite):
+    def __init__(self, text):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = FONT.render( text, True, BLACK, GRAY )
+        self.rect = self.image.get_rect()
+        pygame.draw.rect(self.image, BLACK, self.rect, 1)
 
-## States var
-gameStarted = False
+class GameLoop:
+    def __init__(self) -> None:
+    # Preset of Game var
+        ## The Game Grid
+        self.grid = [[]]
+        for i in range(9):
+            self.grid.append([])
+            for j in range(9):
+                newTile = Tile(i,j,25)
+                self.grid[i].append(newTile)
 
-## Functions
-def startGame(pos):
-    tileSample = random.sample(list(chain.from_iterable(grid)),9)
-    needToFindAnotherTile = False
-    for bombTile in tileSample:
-        if bombTile.rect.collidepoint(pos):
-            needToFindAnotherTile = True
-            continue
-        bombTile.becomeBomb()
-        while(needToFindAnotherTile):
-            anotherTile = random.choice(list(chain.from_iterable(grid)))
-            if anotherTile.rect.collidepoint(pos) or anotherTile.isBomb():
+        ## States var
+        self.bombCount = 9
+        self.bombFound = 0
+        self.gameStarted = False
+        self.gameLoopOngoing = True
+        self.gameLost = False
+        self.postGameLoopOngoing = True
+
+        ## Buttons
+        self.restartButton = Button("Commencer une nouvelle partie")
+
+## Methods
+    def startGame(self, pos):
+        tileSample = random.sample(list(chain.from_iterable(self.grid)),self.bombCount)
+        needToFindAnotherTile = False
+        for bombTile in tileSample:
+            if bombTile.rect.collidepoint(pos):
+                needToFindAnotherTile = True
                 continue
-            anotherTile.becomeBomb()
-            needToFindAnotherTile = False
+            bombTile.becomeBomb()
+            while(needToFindAnotherTile):
+                anotherTile = random.choice(list(chain.from_iterable(self.grid)))
+                if anotherTile.rect.collidepoint(pos) or anotherTile.isBomb:
+                    continue
+                anotherTile.becomeBomb()
+                needToFindAnotherTile = False
     
-def checkNeighborhood(x,y):
-    bombCount = 0
-    if x != 0:
-        if grid[x-1][y].isBomb :
+    def listTheNeighbors(self,x,y):
+        neighbors = []
+        if x != 0:
+            neighbors.append((x-1,y))
+            if y != 0:
+                neighbors.append((x-1,y-1))
+            if y != 8:
+                neighbors.append((x-1,y+1))
+        if y != 0:
+            neighbors.append((x,y-1))
+        if y != 8:
+            neighbors.append((x,y+1))
+        if x != 8:
+            neighbors.append((x+1,y))
+            if y != 0:
+                neighbors.append((x+1,y-1))
+            if y != 8:
+                neighbors.append((x+1,y+1))
+        return neighbors
+        
+    def checkNeighborhood(self, x,y):
+        bombCount = 0
+        if x != 0:
+            if self.grid[x-1][y].isBomb :
+                bombCount += 1
+            if y != 0 and self.grid[x-1][y-1].isBomb :
+                bombCount += 1
+            if y != 8 and self.grid[x-1][y+1].isBomb :
+                bombCount += 1
+        if y != 0 and self.grid[x][y-1].isBomb :
             bombCount += 1
-        if y != 0 and grid[x-1][y-1].isBomb :
+        if y != 8 and self.grid[x][y+1].isBomb :
             bombCount += 1
-        if y != 8 and grid[x-1][y+1].isBomb :
-            bombCount += 1
-    if y != 0 and grid[x][y-1].isBomb :
-        bombCount += 1
-    if y != 8 and grid[x][y+1].isBomb :
-        bombCount += 1
-    if x != 8:
-        if grid[x+1][y].isBomb :
-            bombCount += 1
-        if y != 0 and grid[x+1][y-1].isBomb :
-            bombCount += 1
-        if y != 8 and grid[x+1][y+1].isBomb :
-            bombCount += 1
-    return bombCount
+        if x != 8:
+            if self.grid[x+1][y].isBomb :
+                bombCount += 1
+            if y != 0 and self.grid[x+1][y-1].isBomb :
+                bombCount += 1
+            if y != 8 and self.grid[x+1][y+1].isBomb :
+                bombCount += 1
+        return bombCount
+
+    def leftClick(self, tile):
+        if not tile.isFound:
+            if tile.isBomb:
+                self.gameLoopOngoing = False
+                self.gameLost = True
+            else :
+                bombCount = self.checkNeighborhood(tile.x,tile.y)
+                tile.drawNumber(bombCount)
+                if bombCount == 0 :
+                    self.showAllZeros(tile.x, tile.y)
+
+    def rightClick(self, tile):
+        if tile.isFound:
+            tile.isFound = False
+            self.bombFound -= 1
+            tile.imageGray()
+            if tile.isBomb:
+                self.bombCount += 1
+
+        elif not tile.isNumber :
+            tile.isFound = True
+            self.bombFound += 1
+            tile.imageFlag()
+            if tile.isBomb:
+                self.bombCount -= 1
+
+        if self.bombCount == 0:
+            self.gameLost = False
+            self.gameLoopOngoing = False
+
+    def showAllZeros(self, x,y): 
+        neighbors = self.listTheNeighbors(x, y)
+        for coordonnee in neighbors:
+            if self.grid[coordonnee[0]][coordonnee[1]].isNumber:
+                continue
+            bombNumber = self.checkNeighborhood(coordonnee[0], coordonnee[1])
+            self.grid[coordonnee[0]][coordonnee[1]].drawNumber(bombNumber)
+            if bombNumber == 0 :
+                self.showAllZeros(coordonnee[0],coordonnee[1])
+        
 
 # Game loop
-while True:
-    # Event handling     
-    for event in pygame.event.get():              
-        if event.type == QUIT:
-            pygame.quit()
-            sys.exit()
-        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-            pos = pygame.mouse.get_pos()
-            if not gameStarted:
-                startGame(pos)
-                gameStarted = True
-            clicked_sprites = []
-            for line in grid:
+    #game
+    def run(self):
+        while self.gameLoopOngoing:
+            # Event handling     
+            for event in pygame.event.get():              
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONUP:
+                    pos = pygame.mouse.get_pos()
+                    if not self.gameStarted:
+                        self.startGame(pos)
+                        self.gameStarted = True
+                    for line in self.grid:
+                        for tile in line:
+                            if tile.rect.collidepoint(pos):
+                                if event.button == 1 :
+                                    self.leftClick( tile)
+                                if event.button == 3 :
+                                    self.rightClick(tile)
+
+            # Display of game self.grid      
+            for line in self.grid:
                 for tile in line:
-                    #Debug find bomb
-                    if tile.isBomb:
-                        tile.image.fill(RED)
-                    if tile.rect.collidepoint(pos):
-                        if tile.isBomb:
-                            pass #endgame
-                        else :
-                            bombCount = checkNeighborhood(tile.x,tile.y)
-                            tile.drawNumber(bombCount)
-                        
-                        
+                    DISPLAYSURF.blit(tile.image, tile.getPos())
 
-    # Display of game grid      
-    for line in grid:
-        for tile in line:
-            DISPLAYSURF.blit(tile.image, tile.getPos())
+            infoBulle = FONT.render( "Nombre de bombes marquées " + str(self.bombFound), True, BLACK, WHITE )
+            DISPLAYSURF.blit(infoBulle, (280,25))
 
-    # Next Frame
-    pygame.display.update()
-    FramePerSec.tick(FPS)
+            # Next Frame
+            pygame.display.update()
+            FramePerSec.tick(FPS)
+
+    def posGame(self):
+        while self.postGameLoopOngoing:
+            # Event handling     
+            for event in pygame.event.get():              
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONUP:
+                    pos = pygame.mouse.get_pos()
+                    if self.restartButton.rect.collidepoint(pos):
+                        self.postGameLoopOngoing = False
+            if self.gameLost:
+                infoBulleOne = FONT.render( "Une bombe a explosée ! ", True, BLACK, WHITE )
+                infoBulleTwo = FONT.render( "La partie est perdue !", True, BLACK, WHITE )
+                
+                DISPLAYSURF.blit(infoBulleOne, (280,55))
+                DISPLAYSURF.blit(infoBulleTwo, (280,85))
+            else :
+                infoBulleOne = FONT.render( "La grille est déminée !", True, BLACK, WHITE )
+                infoBulleTwo = FONT.render( "La partie est gagnée !", True, BLACK, WHITE )
+                
+                DISPLAYSURF.blit(infoBulleOne, (280,55))
+                DISPLAYSURF.blit(infoBulleTwo, (280,85))
+            
+            self.restartButton.rect.topleft = (280,115)
+            DISPLAYSURF.blit(self.restartButton.image, (280,115))
+
+            # Next Frame
+            pygame.display.update()
+            FramePerSec.tick(FPS)
+        
+while True :
+    testGame = GameLoop()
+    testGame.run()
+    testGame.posGame()
+    DISPLAYSURF.fill(WHITE)
 
 # Hopefully never needed
 pygame.quit()
