@@ -39,30 +39,38 @@ pygame.display.set_caption("Démineur")
 class Tile(pygame.sprite.Sprite):
     def __init__(self, x, y, size):
         pygame.sprite.Sprite.__init__(self)
+        ## Visual attributs
         self.x = x
         self.y = y
         self.size = size
         self.imageGray()
         self.rect = self.image.get_rect()
         self.rect.topleft = (x*(size+1),y*(size+1))
+        self.flag = pygame.image.load("assets/flag.png").convert_alpha().copy()
+        ## State attributs
         self.isBomb = False
         self.isFound = False
         self.isNumber = False
-        self.flag = pygame.image.load("assets/flag.png").convert_alpha().copy()
     
+    ## Blank Gray Tile
     def imageGray(self):
         self.image = pygame.Surface([self.size, self.size])
         self.image.fill(GRAY)
 
+    ## Tile with a Flag
     def imageFlag(self):
         self.image.blit(self.flag,(self.size/4,self.size/4))
 
+    ## Getter of the position on the display
     def getPos(self):
         return (self.x*(self.size+1), self.y*(self.size+1))
 
+    ## Hide a bomb under the Tile
     def becomeBomb(self):
         self.isBomb = True
     
+    ## Draw a number on the Tile
+    ## Rember there is a number drawn on the Tile
     def drawNumber(self, number):
         numberText = "% s" % number
         number_image = FONT.render( numberText, True, BLACK, GRAY )
@@ -72,7 +80,7 @@ class Tile(pygame.sprite.Sprite):
         self.image.blit(number_image,(drawX,drawY))
         self.isNumber = True
 
-#Clickable Button
+# Clickable Button with a text and a border
 class Button(pygame.sprite.Sprite):
     def __init__(self, text):
         pygame.sprite.Sprite.__init__(self)
@@ -80,6 +88,7 @@ class Button(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         pygame.draw.rect(self.image, BLACK, self.rect, 1)
 
+# A game loop
 class GameLoop:
     def __init__(self) -> None:
     # Preset of Game var
@@ -102,7 +111,9 @@ class GameLoop:
         ## Buttons
         self.restartButton = Button("Commencer une nouvelle partie")
 
-## Methods
+    ## Start the game
+    ## Hide the bombs under the grid
+    ## Tile at pos must be safe
     def startGame(self, pos):
         tileSample = random.sample(list(chain.from_iterable(self.grid)),self.bombCount)
         needToFindAnotherTile = False
@@ -118,6 +129,8 @@ class GameLoop:
                 anotherTile.becomeBomb()
                 needToFindAnotherTile = False
     
+    ## Given a grid position
+    ## Find all existing grid positions around it
     def listTheNeighbors(self,x,y):
         neighbors = []
         if x != 0:
@@ -137,7 +150,8 @@ class GameLoop:
             if y != 8:
                 neighbors.append((x+1,y+1))
         return neighbors
-        
+    
+    ## Count the number of bomb around a grid position
     def checkNeighborhood(self, x,y):
         bombCount = 0
         if x != 0:
@@ -160,6 +174,9 @@ class GameLoop:
                 bombCount += 1
         return bombCount
 
+    ## Reveal a Tile
+    ## Lose the game if it's a bomb
+    ## Show all safe tile around if it's a zero
     def leftClick(self, tile):
         if not tile.isFound:
             if tile.isBomb:
@@ -171,6 +188,8 @@ class GameLoop:
                 if bombCount == 0 :
                     self.showAllZeros(tile.x, tile.y)
 
+    ## Flag a Tile
+    ## Win if all the bombs have been flaged
     def rightClick(self, tile):
         if tile.isFound:
             tile.isFound = False
@@ -190,6 +209,7 @@ class GameLoop:
             self.gameLost = False
             self.gameLoopOngoing = False
 
+    ## Show all the zeros around a grid pos
     def showAllZeros(self, x,y): 
         neighbors = self.listTheNeighbors(x, y)
         for coordonnee in neighbors:
@@ -202,8 +222,9 @@ class GameLoop:
         
 
 # Game loop
-    #game
+    # A game
     def run(self):
+        DISPLAYSURF.fill(WHITE)
         while self.gameLoopOngoing:
             # Event handling     
             for event in pygame.event.get():              
@@ -235,6 +256,7 @@ class GameLoop:
             pygame.display.update()
             FramePerSec.tick(FPS)
 
+    # After a game
     def posGame(self):
         while self.postGameLoopOngoing:
             # Event handling     
@@ -246,6 +268,7 @@ class GameLoop:
                     pos = pygame.mouse.get_pos()
                     if self.restartButton.rect.collidepoint(pos):
                         self.postGameLoopOngoing = False
+            # Informations
             if self.gameLost:
                 infoBulleOne = FONT.render( "Une bombe a explosée ! ", True, BLACK, WHITE )
                 infoBulleTwo = FONT.render( "La partie est perdue !", True, BLACK, WHITE )
@@ -265,12 +288,13 @@ class GameLoop:
             # Next Frame
             pygame.display.update()
             FramePerSec.tick(FPS)
-        
+
+# App loop
+# Game after game, again and again, hours passing by...      
 while True :
     testGame = GameLoop()
     testGame.run()
     testGame.posGame()
-    DISPLAYSURF.fill(WHITE)
 
 # Hopefully never needed
 pygame.quit()
